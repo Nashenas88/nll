@@ -3,7 +3,7 @@ use env::{Environment, Point};
 use loans_in_scope::LoansInScope;
 use liveness::Liveness;
 use infer::{InferenceContext, RegionVariable};
-use nll_repr::repr::{self, RegionName, Variance};
+use nll_repr::repr::{self, RegionName, Variance, RegionDecl};
 use std::collections::HashMap;
 use std::error::Error;
 use region::Region;
@@ -146,6 +146,37 @@ impl<'env> RegionCheck<'env> {
         Ok(())
     }
 
+    fn populate_outlives(
+        &mut self,
+        rv: RegionVariable,
+        visited: &mut Vec<RegionName>, // memoization
+        outlives: &Vec<RegionName>,
+    ) {
+        for &region in outlives {
+            if visited.contains(&region) {
+                continue;
+            }
+
+            let skolemized_block = self.env.graph.skolemized_end(region);
+            self.infer.add_live_point(
+                rv,
+                Point {
+                    block: skolemized_block,
+                    action: 0,
+                },
+            );
+
+            for region_decl in self.env.graph.free_regions() {
+                if visited.contains(&region_decl.name) {
+                    continue;
+                }
+
+                visited.push(region_decl.name);
+                self.populate_outlives(rv, visited, &region_decl.outlives);
+            }
+        }
+    }
+
     fn populate_inference(&mut self, liveness: &Liveness) {
         // This is sort of a hack, but... for each "free region" `r`,
         // we will wind up with a region variable. We want that region
@@ -160,7 +191,7 @@ impl<'env> RegionCheck<'env> {
         // doesn't permit such constraints -- you could also view it
         // an assertion that we add to the tests).
         for region_decl in self.env.graph.free_regions() {
-            let region = region_decl.name;
+            let &RegionDecl{ name: region, ref outlives } = region_decl;
             let rv = self.region_variable(region);
             for &block in &self.env.reverse_post_order {
                 let end_point = self.env.end_point(block);
@@ -172,6 +203,8 @@ impl<'env> RegionCheck<'env> {
 
             let skolemized_block = self.env.graph.skolemized_end(region);
             self.infer.add_live_point(rv, Point { block: skolemized_block, action: 0 });
+            self.populate_outlives(rv, &mut vec![region], outlives);
+            println!("Region for {:?}:\n{:#?}", region, self.infer.region(rv));
         }
 
         liveness.walk(|point, action, live_on_entry| {
