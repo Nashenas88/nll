@@ -153,27 +153,26 @@ impl<'env> RegionCheck<'env> {
         outlives: &Vec<RegionName>,
     ) {
         for &region in outlives {
+            // avoid recomputation
             if visited.contains(&region) {
                 continue;
             }
 
             let skolemized_block = self.env.graph.skolemized_end(region);
-            self.infer.add_live_point(
-                rv,
-                Point {
-                    block: skolemized_block,
-                    action: 0,
-                },
-            );
-
-            for region_decl in self.env.graph.free_regions() {
-                if visited.contains(&region_decl.name) {
-                    continue;
+            self.infer.add_live_point(rv, Point { block: skolemized_block,  action: 0, });
+            let outlives = {
+                let mut possible_matches = self.env.graph
+                    .free_regions()
+                    .iter()
+                    .filter(|rd| region == rd.name);
+                match possible_matches.next() {
+                    Some(region_decl) => &region_decl.outlives,
+                    None => continue
                 }
+            };
 
-                visited.push(region_decl.name);
-                self.populate_outlives(rv, visited, &region_decl.outlives);
-            }
+            visited.push(region);
+            self.populate_outlives(rv, visited, &outlives);
         }
     }
 
@@ -184,9 +183,8 @@ impl<'env> RegionCheck<'env> {
         // End(r)}`, where `G` is all the points in the control-flow
         // graph, and `End(r)` is the end-point of `r`. We also want
         // to include the endpoints of any free-regions that `r`
-        // outlives. For now I'm ignoring that last bit, and we're
-        // also not enforcing (in inference) that `r` doesn't get
-        // inferred to some *larger* region (that would be a kind of
+        // outlives. We're not enforcing (in inference) that `r` doesn't
+        // get inferred to some *larger* region (that would be a kind of
         // constraint we would need to add, and inference right now
         // doesn't permit such constraints -- you could also view it
         // an assertion that we add to the tests).
@@ -204,7 +202,7 @@ impl<'env> RegionCheck<'env> {
             let skolemized_block = self.env.graph.skolemized_end(region);
             self.infer.add_live_point(rv, Point { block: skolemized_block, action: 0 });
             self.populate_outlives(rv, &mut vec![region], outlives);
-            println!("Region for {:?}:\n{:#?}", region, self.infer.region(rv));
+            println!("Region for {:?}:\n{:#?}\n", region, self.infer.region(rv));
         }
 
         liveness.walk(|point, action, live_on_entry| {
