@@ -35,6 +35,10 @@ impl InferenceContext {
         RegionVariable { index }
     }
 
+    pub fn lock_var(&mut self, v: RegionVariable) {
+        self.values[v.index].lock();
+    }
+
     pub fn add_live_point(&mut self, v: RegionVariable, point: Point) {
         log!("add_live_point({:?}, {:?})", v, point);
         self.values[v.index].add_point(point);
@@ -55,15 +59,18 @@ impl InferenceContext {
         while changed {
             changed = false;
             for constraint in &self.constraints {
+                let sub_locked = if self.values[constraint.sub.index].locked() { "locked" } else { "unlocked" };
+                let sup_locked = if self.values[constraint.sup.index].locked() { "locked" } else { "unlocked" };
                 let sub = &self.values[constraint.sub.index].clone();
                 let sup = &mut self.values[constraint.sup.index];
-                log!("constraint: {:?}", constraint);
+                log!("constraint: {:?} - sub {} - sup {}", constraint, sub_locked, sup_locked);
                 log!("    sub (before): {:?}", sub);
                 log!("    sup (before): {:?}", sup);
                 changed |= dfs.copy(sub, sup, constraint.point);
                 log!("    sup (after) : {:?}", sup);
                 log!("    changed     : {:?}", changed);
             }
+            log!("\n");
         }
     }
 }

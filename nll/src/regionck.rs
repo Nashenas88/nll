@@ -202,6 +202,7 @@ impl<'env> RegionCheck<'env> {
             let skolemized_block = self.env.graph.skolemized_end(region);
             self.infer.add_live_point(rv, Point { block: skolemized_block, action: 0 });
             self.populate_outlives(rv, &mut vec![region], outlives);
+            self.infer.lock_var(rv);
             println!("Region for {:?}:\n{:#?}\n", region, self.infer.region(rv));
         }
 

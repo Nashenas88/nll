@@ -5,8 +5,8 @@ struct Value { }
 //   &map.value
 // }
 
-for<'s: 'r, 'r: 'x, 'x: 'y, 'y>;
-let map: &'y Map;
+for<'s: 'r, 'r>;
+let map: &'r Map;
 let return: &'s Value;
 
 let m: &'_ Map;

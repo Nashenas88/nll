@@ -11,16 +11,27 @@ use std::fmt;
 #[derive(Clone, PartialEq, Eq)]
 pub struct Region {
     points: BTreeSet<Point>,
+    locked: bool,
 }
 
 impl Region {
     pub fn new() -> Self {
         Region {
             points: BTreeSet::new(),
+            locked: false,
         }
     }
 
+    pub fn lock(&mut self) {
+        self.locked = true;
+    }
+
+    pub fn locked(&self) -> bool {
+        self.locked
+    }
+
     pub fn add_point(&mut self, point: Point) -> bool {
+        if self.locked { return false; }
         self.points.insert(point)
     }
 
